@@ -1,0 +1,1 @@
+add_executable(check_gcc_intel_simd.cpp check_gcc_intel_simd.cpp)

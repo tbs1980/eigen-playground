@@ -4,3 +4,4 @@ project(eigen-playground VERSION 1.0 DESCRIPTION "Learning Internal of Eigen" LA
 
 add_subdirectory(expression_templates)
 add_subdirectory(aligned_allocation)
+add_subdirectory(simd)
