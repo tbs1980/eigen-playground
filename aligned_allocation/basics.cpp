@@ -7,8 +7,8 @@ int main()
     const int alignment = 32;
 
     // Allocate memory (aligned or unaligned)
-    void* ptr = std::malloc(100*alignment);
-    void* alignedPtr = std::aligned_alloc(alignment, 100*alignment);
+    void *ptr = std::malloc(100 * alignment);
+    void *alignedPtr = std::aligned_alloc(alignment, 100 * alignment);
 
     // Check alignment
     bool isPtrAligned = (reinterpret_cast<uintptr_t>(ptr) % alignment == 0);
@@ -20,5 +20,4 @@ int main()
 
     std::free(ptr);
     std::free(alignedPtr);
-
 }
