@@ -1,1 +1,3 @@
 add_executable(basics basics.cpp)
+add_executable(custom_aligned_allocator custom_aligned_allocator.cpp)
+target_compile_features(custom_aligned_allocator PUBLIC cxx_std_17)
