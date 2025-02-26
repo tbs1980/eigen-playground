@@ -1,0 +1,1 @@
+add_executable(naive_vector naive_vector.cpp)
