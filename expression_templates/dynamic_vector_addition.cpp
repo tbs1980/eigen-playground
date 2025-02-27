@@ -74,7 +74,7 @@ VectorSum<Lhs, Rhs> operator+(const Lhs &lhs, const Rhs &rhs)
 
 int main()
 {
-    Vector v(3), w(3), u(3);
+    Vector v(3), w(3), u(3), x(3);
 
     // Initialize vectors
     v(0) = 1.0;
@@ -83,15 +83,19 @@ int main()
     w(0) = 4.0;
     w(1) = 5.0;
     w(2) = 6.0;
+    x(0) = 7.0;
+    x(1) = 8.0;
+    x(2) = 9.0;
 
     v.print();
     w.print();
+    x.print();
 
     // Perform vector addition
-    u = v + w;
+    u = v + w + x;
 
     // Print the result
-    std::cout << "u = v + w = " << std::endl;
+    std::cout << "u = v + w + x = " << std::endl;
     u.print();
 
     return 0;
