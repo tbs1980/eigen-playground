@@ -1,0 +1,2 @@
+add_executable(valgrind_example valgrind_example.cpp)
+target_compile_options(valgrind_example PRIVATE -fno-inline)
