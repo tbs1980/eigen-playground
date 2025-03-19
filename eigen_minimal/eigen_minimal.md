@@ -37,7 +37,7 @@ complement the documenation by taking a course through the code base.
 ## Definition of `Eigen::VectorXf`
 
 We start with the definition of `Eigen::VectorXf`. You can find this
-at Line 478 of `Core/Matrix.h`
+at Line 478 of `Eigen/src/Core/Matrix.h`
 
 ```c++
 EIGEN_MAKE_TYPEDEFS_ALL_SIZES(float, f)
@@ -90,7 +90,7 @@ typedef Matrix<float, Dynamic, 1> VectorXf;
 ```
 
 The template argument which tells Eigen that the size of the matrix
-is not fixed is defined in `Core/util/Constants.h` line 25.
+is not fixed is defined in `Eigen/src/Core/util/Constants.h` line 25.
 
 ```C++
 const int Dynamic = -1;
@@ -102,4 +102,121 @@ So, far the files we've used are
 flowchart TD
     A[eigen_minimal.cpp] --> B[Core/Matrix.h]
     B[Core/Matrix.h] --> C[Core/util/Constants.h]
+```
+
+## Going deeper into `Matrix` the class
+
+Now we're getting inside the skin. The obvious place to look is `Eigen/src/Core/Matrix.h`.
+However, there's slight problem. We see that the matrix class is defined in 
+line 186. However, we see that there're 6 template parameters required.
+
+```C++
+template <typename Scalar_, int Rows_, int Cols_, int Options_, int MaxRows_, int MaxCols_>
+class Matrix : public PlainObjectBase<Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>>
+```
+
+We only specified 3 in the definition in the previous section. What's going on?
+The key to this question lies in a file called `Eigen/src/Core/util/ForwardDeclarations.h`.
+This file gets included in `Eigen/Core` in line 174. So we see that this file contains
+a forward declaration of the `Matrix` calss in line 65 of `Eigen/src/Core/util/ForwardDeclarations.h`.
+
+If you want to learn more about forward declarations and why are they necessary,
+see [this stack overflow page](https://stackoverflow.com/questions/4757565/what-are-forward-declarations-in-c).
+
+The forward declaration in in line 65 of `Eigen/src/Core/util/ForwardDeclarations.h` is
+
+```C++
+template <typename Scalar_, int Rows_, int Cols_,
+          int Options_ = AutoAlign | ((Rows_ == 1 && Cols_ != 1)   ? Eigen::RowMajor
+                                      : (Cols_ == 1 && Rows_ != 1) ? Eigen::ColMajor
+                                                                   : EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION),
+          int MaxRows_ = Rows_, int MaxCols_ = Cols_>
+class Matrix;
+```
+
+Now we get and idea why we specified 3 arguments and what happend to the other 3
+arguments required. Let's first undertand the purpose of these arguments. Eigen's
+excellent documentation is a good place start.
+See this [page](https://eigen.tuxfamily.org/dox/group__TutorialMatrixClass.html)
+and this [page](https://eigen.tuxfamily.org/dox/classEigen_1_1Matrix.html).
+The table below summarises the arguments:
+
+| Argument   | Purpose                                                                                    |
+|------------|--------------------------------------------------------------------------------------------|
+| `Scalar_`  | Numeric type, e.g. `float`, `double`, `int` or `std::complex<float>`.                      |
+| `Rows_`    | Number of rows, or `Dynamic`                                                               |
+| `Cols_`    | Number of columns, or `Dynamic`                                                            |
+| `Options_` | A combination of either `RowMajor` or `ColMajor`, and of either `AutoAlign` or `DontAlign` |
+| `MaxRows_` | Maximum number of rows. Defaults to `Rows_`                                                |
+| `MaxCols_` | Maximum number of columns. Defaults to `Cols_`                                             |
+
+Our observations are:
+
+1. We now see that the 3 arguments `Scalar_`, `Rows_` and `Cols_` are absolutely necessary
+2. `Options_`, `MaxRows_` and `MaxCols_` are derived from the above arguments.
+
+Of these unsepecified arguments, `MaxRows_` and `MaxCols_` will only matter in certain cirum stances like
+dynamic-size blocks inside fixed-size matrices. See the note on this [page](https://eigen.tuxfamily.org/dox/classEigen_1_1Matrix.html#maxrows)
+for more details. For most cases they can just default to `Rows_` and `Cols_`.
+
+However, `Options_` has a very imporant part to play. This spcifies two imporant aspects of the 
+matrix raw data storage:
+
+1. Storage order. This can be row major (`RowMajor`) or column major `ColMajor`. In other words C ordering or Fortran ordering.
+2. Alignment. We know that Eigen performs vectorised (SIMD) operations. We align the allocated data except for fixed sizes that aren't multiples of the packet size.
+
+The devils is always in the details! We see that the `Options_` argument is derived and the derivation is:
+
+```C++
+int Options_ = AutoAlign | (
+    (Rows_ == 1 && Cols_ != 1) ? Eigen::RowMajor :
+    (Cols_ == 1 && Rows_ != 1) ? Eigen::ColMajor :
+    EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION
+);
+```
+
+How do we interpret this? This is a ternary conditional operator (?:) 
+which is actually a shorthand for a simple if-else statement in C and C++.
+The basic syntax is `condition ? expression_if_true : expression_if_false;`. 
+The ternary operator chooses the appropriate storage order for:
+
+1. First Condition (`(Rows_ == 1 && Cols_ != 1)`). If true we have `Eigen::RowMajor`.
+2. Second Condition (`(Cols_ == 1 && Rows_ != 1)`). If true we have `Eigen::ColMajor`.
+3. Final / default Case (`EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION`). If both 1 and 2 are false
+
+Now we're wondering where are `AutoAlign`, `RowMajor`, `ColMajor` and `EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION`
+are defined. These can be found in line 316 of `Eigen/src/Core/util/Constants.h`
+
+```C++
+enum StorageOptions {
+  /** Storage order is column major (see \ref TopicStorageOrders). */
+  ColMajor = 0,
+  /** Storage order is row major (see \ref TopicStorageOrders). */
+  RowMajor = 0x1,  // it is only a coincidence that this is equal to RowMajorBit -- don't rely on that
+  /** Align the matrix itself if it is vectorizable fixed-size */
+  AutoAlign = 0,
+  /** Don't require alignment for the matrix itself (the array of coefficients, if dynamically allocated, may still be requested to be aligned) */ // FIXME --- clarify the situation
+  DontAlign = 0x2
+};
+```
+
+Finally `EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION` can found in Line 31 of `Eigen/src/Core/util/Macros.h`.
+
+```C++
+#ifdef EIGEN_DEFAULT_TO_ROW_MAJOR
+#define EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION Eigen::RowMajor
+#else
+#define EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION Eigen::ColMajor
+#endif
+```
+
+So unless we pass `EIGEN_DEFAULT_TO_ROW_MAJOR` during compile time, we get the defualt set to `Eigen::ColMajor`.
+Now our diagram of dependencies looks like:
+
+```mermaid
+flowchart TD
+    A[eigen_minimal.cpp] --> B[Eigen/src/Core/Matrix.h]
+    B[Eigen/src/Core/Matrix.h] --> C[Eigen/src/Core/util/Constants.h]
+    A[eigen_minimal.cpp] --> D[Eigen/src/Core/util/ForwardDeclarations.h]
+    C[Eigen/src/Core/util/Constants.h] --> E[Eigen/src/Core/util/Macros.h]
 ```
