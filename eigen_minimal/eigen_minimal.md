@@ -211,6 +211,8 @@ Finally `EIGEN_DEFAULT_MATRIX_STORAGE_ORDER_OPTION` can found in Line 31 of `Eig
 ```
 
 So unless we pass `EIGEN_DEFAULT_TO_ROW_MAJOR` during compile time, we get the defualt set to `Eigen::ColMajor`.
+There's documentation on the [storge order here](https://eigen.tuxfamily.org/dox/group__TopicStorageOrders.html).
+
 Now our diagram of dependencies looks like:
 
 ```mermaid
@@ -220,3 +222,11 @@ flowchart TD
     A[eigen_minimal.cpp] --> D[Eigen/src/Core/util/ForwardDeclarations.h]
     C[Eigen/src/Core/util/Constants.h] --> E[Eigen/src/Core/util/Macros.h]
 ```
+
+### Depper into the Matrix class
+
+When we look at the definition of the class in line 185, we immediately notice that its
+a sublcass of `PlainObjectBase`. Actually if you read the documentation, there's
+class hierarchy which explains the design of Eigen. Look at this [page](https://eigen.tuxfamily.org/dox/classEigen_1_1Matrix.html)
+and expand the Inheritance diagram of `Eigen::Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>`.
+Additionally there's a page that explains the [class hierarhcy](https://eigen.tuxfamily.org/dox/TopicClassHierarchy.html).
