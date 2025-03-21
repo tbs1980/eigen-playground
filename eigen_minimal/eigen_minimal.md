@@ -230,3 +230,140 @@ a sublcass of `PlainObjectBase`. Actually if you read the documentation, there's
 class hierarchy which explains the design of Eigen. Look at this [page](https://eigen.tuxfamily.org/dox/classEigen_1_1Matrix.html)
 and expand the Inheritance diagram of `Eigen::Matrix<Scalar_, Rows_, Cols_, Options_, MaxRows_, MaxCols_>`.
 Additionally there's a page that explains the [class hierarhcy](https://eigen.tuxfamily.org/dox/TopicClassHierarchy.html).
+
+Let's go through the class line by line. First thing we notice is the
+macro `EIGEN_DENSE_PUBLIC_INTERFACE`. This is defined in line 1184 of
+`Eigen/src/Core/util/Macros.h`.
+
+```C++
+#define EIGEN_DENSE_PUBLIC_INTERFACE(Derived) \
+  EIGEN_GENERIC_PUBLIC_INTERFACE(Derived)     \
+  typedef typename Base::PacketScalar PacketScalar;
+```
+
+This contains another macro! `EIGEN_GENERIC_PUBLIC_INTERFACE`
+which is defined on line 1159 of `Eigen/src/Core/util/Macros.h`.
+
+```C++
+#define EIGEN_GENERIC_PUBLIC_INTERFACE(Derived)                                                                        \
+  typedef typename Eigen::internal::traits<Derived>::Scalar                                                            \
+      Scalar; /*!< \brief Numeric type, e.g. float, double, int or std::complex<float>. */                             \
+  typedef typename Eigen::NumTraits<Scalar>::Real                                                                      \
+      RealScalar; /*!< \brief The underlying numeric type for composed scalar types. \details In cases where Scalar is \
+                     e.g. std::complex<T>, T were corresponding to RealScalar. */                                      \
+  typedef typename Base::CoeffReturnType                                                                               \
+      CoeffReturnType; /*!< \brief The return type for coefficient access. \details Depending on whether the object    \
+                          allows direct coefficient access (e.g. for a MatrixXd), this type is either 'const Scalar&'  \
+                          or simply 'Scalar' for objects that do not allow direct coefficient access. */               \
+  typedef typename Eigen::internal::ref_selector<Derived>::type Nested;                                                \
+  typedef typename Eigen::internal::traits<Derived>::StorageKind StorageKind;                                          \
+  typedef typename Eigen::internal::traits<Derived>::StorageIndex StorageIndex;                                        \
+  enum CompileTimeTraits {                                                                                             \
+    RowsAtCompileTime = Eigen::internal::traits<Derived>::RowsAtCompileTime,                                           \
+    ColsAtCompileTime = Eigen::internal::traits<Derived>::ColsAtCompileTime,                                           \
+    Flags = Eigen::internal::traits<Derived>::Flags,                                                                   \
+    SizeAtCompileTime = Base::SizeAtCompileTime,                                                                       \
+    MaxSizeAtCompileTime = Base::MaxSizeAtCompileTime,                                                                 \
+    IsVectorAtCompileTime = Base::IsVectorAtCompileTime                                                                \
+  };                                                                                                                   \
+  using Base::derived;                                                                                                 \
+  using Base::const_cast_derived;
+
+```
+
+All this does is giving the user access derived types. In fact we have a full
+documentation of major macros in [this page](https://eigen.tuxfamily.org/dox/TopicPreprocessorDirectives.html) 
+which is super useful. 
+
+Now the rest of the lines deals with various constructors of the Matrix class.
+The one we're interested and is relevant to the our example is 
+`Matrix(Index dim)`. This is defined on lines 317 (documented in 344) of `Eigen/src/Core/Matrix.h`.
+
+```C++
+  // This constructor is for both 1x1 matrices and dynamic vectors
+  template <typename T>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit Matrix(const T& x) {
+    Base::template _init1<T>(x);
+  }
+```
+and
+
+```C++
+  /** \brief Constructs a vector or row-vector with given dimension. \only_for_vectors
+   *
+   * This is useful for dynamic-size vectors. For fixed-size vectors,
+   * it is redundant to pass these parameters, so one should use the default constructor
+   * Matrix() instead.
+   *
+   * \warning This constructor is disabled for fixed-size \c 1x1 matrices. For instance,
+   * calling Matrix<double,1,1>(1) will call the initialization constructor: Matrix(const Scalar&).
+   * For fixed-size \c 1x1 matrices it is therefore recommended to use the default
+   * constructor Matrix() instead, especially when using one of the non standard
+   * \c EIGEN_INITIALIZE_MATRICES_BY_{ZERO,\c NAN} macros (see \ref TopicPreprocessorDirectives).
+   */
+  EIGEN_STRONG_INLINE explicit Matrix(Index dim);
+```
+
+Now we encounter another macro `EIGEN_STRONG_INLINE`. The purpose of this is
+obvious and we can see that when looking at the definition
+line 840 of `Eigen/src/Core/util/Macros.h` as shown below:
+
+```C++
+#ifndef EIGEN_STRONG_INLINE
+#if (EIGEN_COMP_MSVC || EIGEN_COMP_ICC) && !defined(EIGEN_GPUCC)
+#define EIGEN_STRONG_INLINE __forceinline
+#else
+#define EIGEN_STRONG_INLINE inline
+#endif
+#endif
+```
+
+The second one is `EIGEN_DEVICE_FUNC`. This mainly for working with GPU.
+The macro is defined in line 893 of `Eigen/src/Core/util/Macros.h`.
+
+```C++
+#if defined(SYCL_DEVICE_ONLY)
+#ifndef EIGEN_DONT_VECTORIZE
+#define EIGEN_DONT_VECTORIZE
+#endif
+#define EIGEN_DEVICE_FUNC __attribute__((flatten)) __attribute__((always_inline))
+// All functions callable from CUDA/HIP code must be qualified with __device__
+#elif defined(EIGEN_GPUCC)
+#define EIGEN_DEVICE_FUNC __host__ __device__
+#else
+#define EIGEN_DEVICE_FUNC
+#endif
+```
+
+As we're not working with GPUs this macro has no effect on the code.
+
+Now let's inspect the constructor and see where it points us to. This where
+we fist encounter the super class `PlainObjectBase`. We will discuss that in
+the next section. Just to finish off we see that there's bit to this class
+we need to say. It's about the two construtors that actually constructs its data
+here.
+
+1. `Matrix(const Scalar& x, const Scalar& y, const Scalar& z)`
+2. `Matrix(const Scalar& x, const Scalar& y, const Scalar& z, const Scalar& w)`
+
+For example, the first one creates data as per the definition on line 370 of `Eigen/src/Core/Matrix.h`.
+
+```C++
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE Matrix(const Scalar& x, const Scalar& y, const Scalar& z) {
+    EIGEN_STATIC_ASSERT_VECTOR_SPECIFIC_SIZE(Matrix, 3)
+    m_storage.data()[0] = x;
+    m_storage.data()[1] = y;
+    m_storage.data()[2] = z;
+  }
+```
+
+Now where does the `m_storage` comes from? Look at line 415
+
+```C++
+using Base::m_storage;
+```
+
+and base is actually defined as `typedef PlainObjectBase<Matrix> Base;` at the top of the class.
+
+In summary the Matrix class is provides a few constructors and a few operators
+which are useful.
