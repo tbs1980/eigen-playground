@@ -366,4 +366,15 @@ using Base::m_storage;
 and base is actually defined as `typedef PlainObjectBase<Matrix> Base;` at the top of the class.
 
 In summary the Matrix class is provides a few constructors and a few operators
-which are useful.
+which are useful. The dependecy graph now looks like:
+
+
+```mermaid
+flowchart TD
+    A[eigen_minimal.cpp] --> B[Eigen/src/Core/Matrix.h]
+    B[Eigen/src/Core/Matrix.h] --> C[Eigen/src/Core/util/Constants.h]
+    A[eigen_minimal.cpp] --> D[Eigen/src/Core/util/ForwardDeclarations.h]
+    C[Eigen/src/Core/util/Constants.h] --> E[Eigen/src/Core/util/Macros.h]
+    B[Eigen/src/Core/Matrix.h] --> F[Eigen/src/Core/PlainObjectBase.h]
+    B[Eigen/src/Core/Matrix.h] --> E[Eigen/src/Core/util/Macros.h]
+```
