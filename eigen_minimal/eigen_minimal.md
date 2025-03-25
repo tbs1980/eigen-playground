@@ -223,7 +223,7 @@ flowchart TD
     C[Eigen/src/Core/util/Constants.h] --> E[Eigen/src/Core/util/Macros.h]
 ```
 
-### Depper into the Matrix class
+### Deeper into the Matrix class
 
 When we look at the definition of the class in line 185, we immediately notice that its
 a sublcass of `PlainObjectBase`. Actually if you read the documentation, there's
@@ -377,4 +377,41 @@ flowchart TD
     C[Eigen/src/Core/util/Constants.h] --> E[Eigen/src/Core/util/Macros.h]
     B[Eigen/src/Core/Matrix.h] --> F[Eigen/src/Core/PlainObjectBase.h]
     B[Eigen/src/Core/Matrix.h] --> E[Eigen/src/Core/util/Macros.h]
+```
+
+## Dissecting `PlainObjectBase`.
+
+It's time now to peel one more layer and go into `PlainObjectBase` class.
+
+We start from the definition of the constructor on lines 317 (documented in 344) of `Eigen/src/Core/Matrix.h`.
+
+```C++
+  // This constructor is for both 1x1 matrices and dynamic vectors
+  template <typename T>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE explicit Matrix(const T& x) {
+    Base::template _init1<T>(x);
+  }
+```
+
+What's `_init1` doing? As we can see from the comment just above the defintion,
+the constructor is used for both 1x1 matrices and dynamic vector. In our
+example it's a dynamic vector. This constructor is defined on line of
+`Eigen/src/Core/PlainObjectBase.h`.
+
+```C++
+  // The argument is convertible to the Index type and we either have a non 1x1 Matrix, or a dynamic-sized Array,
+  // then the argument is meant to be the size of the object.
+  template <typename T>
+  EIGEN_DEVICE_FUNC EIGEN_STRONG_INLINE void _init1(
+      Index size,
+      std::enable_if_t<(Base::SizeAtCompileTime != 1 || !internal::is_convertible<T, Scalar>::value) &&
+                           ((!internal::is_same<typename internal::traits<Derived>::XprKind, ArrayXpr>::value ||
+                             Base::SizeAtCompileTime == Dynamic)),
+                       T>* = 0) {
+    // NOTE MSVC 2008 complains if we directly put bool(NumTraits<T>::IsInteger) as the EIGEN_STATIC_ASSERT argument.
+    const bool is_integer_alike = internal::is_valid_index_type<T>::value;
+    EIGEN_UNUSED_VARIABLE(is_integer_alike);
+    EIGEN_STATIC_ASSERT(is_integer_alike, FLOATING_POINT_ARGUMENT_PASSED__INTEGER_WAS_EXPECTED)
+    resize(size);
+  }
 ```
